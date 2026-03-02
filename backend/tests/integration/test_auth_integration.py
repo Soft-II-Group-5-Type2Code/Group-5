@@ -39,10 +39,10 @@ def _build_fake_supabase(existing_users=None, insert_result=None, login_result=N
 
         def sign_in_with_password(self, credentials):
             if not login_result:
-                raise AuthApiError("Invalid credentials", 400)
+                raise AuthApiError("Invalid credentials", 400, None)
             user = login_result[0]
             if not verify_password(credentials["password"], user.get("password_hash", "")):
-                raise AuthApiError("Invalid credentials", 400)
+                raise AuthApiError("Invalid credentials", 400, None)
             return FakeAuthResponse(user["id"])
 
     class FakeQuery:
