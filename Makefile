@@ -2,14 +2,14 @@
 
 help:
 	@echo "Run First Three in Order:"
-	@echo "  make backend-env"
+	@echo "  make backend-venv"
 	@echo "  make backend-install"
 	@echo "  make frontend-install"
 	@echo "    After installing dependencies run:" 
 	@echo "      make dev               Run backend + frontend in two terminals (instructions)"
 	@echo "      make backend-dev       Run backend (uvicorn)"
 	@echo "      make frontend-dev      Run frontend (vite)"
-	@echo "For production output:
+	@echo "For production output:"
 	@echo "    make build               Build frontend (dist/)"
 	@echo "Can also clean with:"
 	@echo "  make clean                 Removes backend/.venv frontend/node_modules frontend/dist"

@@ -63,3 +63,11 @@
   border: none;
   border-radius: 3px;
 }
+
+/* This is for the settings icon */
+
+.navbar-settings {
+  font-size: 1.2rem;
+  color: var(--color-nav-text);
+  margin-left: 0.75rem;
+}

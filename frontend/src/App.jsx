@@ -7,6 +7,7 @@ import LessonsPage from "./pages/LessonsPage";
 import PracticePage from "./pages/PracticePage";
 import GamePage from "./pages/GamePage";
 import FinalChallengePage from "./pages/FinalChallengePage";
+import SettingsPage from "./pages/SettingsPage";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
             <Route path="/practice/:unitId/:stepId" element={<PracticePage />} />
             <Route path="/challenge/:unitId" element={<FinalChallengePage />} />
             <Route path="/game" element={<GamePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/dashboard" element={<Navigate to="/lessons" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />

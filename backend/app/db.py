@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -21,11 +22,11 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 if not SUPABASE_URL:
     raise RuntimeError("Missing SUPABASE_URL in environment")
 
-supabase_public: Client | None = None
+supabase_public: Optional[Client] = None
 if SUPABASE_ANON_KEY:
     supabase_public = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-supabase_admin: Client | None = None
+supabase_public: Optional[Client] = None
 if SUPABASE_SERVICE_ROLE_KEY:
     supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     print("Supabase admin client: enabled")

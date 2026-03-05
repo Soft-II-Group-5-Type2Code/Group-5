@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
+import { Link } from "react-router-dom";
 import '../styles/navbar.css'
 
 export default function NavBar() {
@@ -39,6 +40,9 @@ export default function NavBar() {
 
       {user && (
         <div className="navbar-user">
+          <Link to="/settings" className="navbar-settings">
+            ⚙️
+          </Link>
           <span className="navbar-username">{user.username}</span>
           <button className="btn-logout" onClick={handleLogout}>
             Log out
