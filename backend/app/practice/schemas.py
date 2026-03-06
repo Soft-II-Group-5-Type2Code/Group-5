@@ -21,14 +21,12 @@ class PracticeStartResponse(BaseModel):
 class PracticeSubmitRequest(BaseModel):
     session_id: UUID
 
-    # aggregate metrics
     wpm: Optional[Any] = None
     accuracy: Optional[Any] = None
     error_count: Optional[Any] = 0
     time_seconds: Optional[Any] = 0
     duration_seconds: Optional[Any] = None
 
-    # score breakdown (optional)
     score: Optional[Any] = None
     correct: Optional[Any] = 0
     total: Optional[Any] = 0
@@ -47,6 +45,9 @@ class PracticeSubmitResponse(BaseModel):
 
 class PracticeSessionsResponse(BaseModel):
     sessions: List[Dict[str, Any]]
+    total: Optional[int] = None
+    limit: Optional[int] = None
+    offset: Optional[int] = None
 
 
 class PracticeSessionDetailResponse(BaseModel):
@@ -61,4 +62,34 @@ class PracticeStatsResponse(BaseModel):
     best_wpm: Optional[float] = None
     avg_accuracy: Optional[float] = None
     best_accuracy: Optional[float] = None
+    most_practiced_lesson_id: Optional[str] = None
+    last_30_days_time_seconds: int = 0
+    last_7_sessions: List[Dict[str, Any]] = Field(default_factory=list)
     last_session: Optional[Dict[str, Any]] = None
+
+
+class PracticeLessonStatsResponse(BaseModel):
+    lessons: List[Dict[str, Any]]
+    total_lessons: int
+
+
+class PracticeTrendPoint(BaseModel):
+    submitted_at: str
+    wpm: Optional[float] = None
+    accuracy: Optional[float] = None
+    time_seconds: int = 0
+    lesson_id: Optional[str] = None
+    tier: Optional[int] = None
+
+
+class PracticeDailyTrendPoint(BaseModel):
+    date: str
+    avg_wpm: Optional[float] = None
+    avg_accuracy: Optional[float] = None
+    total_time_seconds: int = 0
+    total_sessions: int = 0
+
+
+class PracticeTrendsResponse(BaseModel):
+    sessions: List[PracticeTrendPoint] = Field(default_factory=list)
+    daily: List[PracticeDailyTrendPoint] = Field(default_factory=list)

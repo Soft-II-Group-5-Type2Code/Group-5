@@ -13,7 +13,7 @@ import {
   setUnlocksOverride,
 } from '../utils/progress'
 
-import { fetchPracticeStats, fetchPracticeSessions } from '../api/practice'
+import { fetchPracticeStats, fetchRecentSessions } from '../api/practice'
 
 function shortText(text, max = 110) {
   if (!text) return ''
@@ -29,6 +29,27 @@ function formatAccuracy(a) {
   const pct = n <= 1 ? n * 100 : n
   return `${pct.toFixed(1)}%`
 }
+
+function buildLessonMap() {
+  const map = {}
+
+  UNITS.forEach((unit) => {
+    unit.lessons.forEach((lesson) => {
+      if (lesson.backendLessonId) {
+        map[lesson.backendLessonId] = {
+          label: lesson.label || `Lesson ${lesson.stepId}`,
+          unit: unit.title,
+          stepId: lesson.stepId,
+          unitId: unit.id,
+        }
+      }
+    })
+  })
+
+  return map
+}
+
+const LESSON_MAP = buildLessonMap()
 
 export default function LessonsPage() {
   const progress = loadProgress()
@@ -48,8 +69,8 @@ export default function LessonsPage() {
         setError(null)
 
         const [statsRes, sessionsRes] = await Promise.all([
-          fetchPracticeStats(50),
-          fetchPracticeSessions(10),
+          fetchPracticeStats(200),
+          fetchRecentSessions(10),
         ])
 
         setStats(statsRes || null)
@@ -93,7 +114,9 @@ export default function LessonsPage() {
 
           {!loading && !error && stats && (
             <>
-              <div className="tile-muted">Total Sessions: {stats.total_sessions ?? 0}</div>
+              <div className="tile-muted">
+                Total Sessions: {stats.total_sessions ?? 0}
+              </div>
 
               <div className="tile-muted">
                 Avg WPM: {stats.avg_wpm == null ? '—' : Number(stats.avg_wpm).toFixed(1)}
@@ -113,6 +136,17 @@ export default function LessonsPage() {
 
               <div className="tile-muted">
                 Total Time: {stats.total_time_seconds ?? 0}s
+              </div>
+
+              <div className="tile-muted">
+                Last 30 Days: {stats.last_30_days_time_seconds ?? 0}s
+              </div>
+
+              <div className="tile-muted">
+                Most Practiced:{' '}
+                {stats.most_practiced_lesson_id
+                  ? LESSON_MAP[stats.most_practiced_lesson_id]?.label ?? 'Lesson'
+                  : '—'}
               </div>
             </>
           )}
@@ -183,47 +217,48 @@ export default function LessonsPage() {
                   )
                 })}
 
-                {unit.finalChallenge && (() => {
-                  const challengeTile = (
-                    <div className={`tile ${finalChallengeLocked ? 'locked' : ''}`}>
-                      <div className="tile-num">★</div>
-                      <div className="tile-lock">
-                        {finalChallengeLocked ? '🔒' : finalChallengeCompleted ? '✓' : ''}
-                      </div>
-
-                      <div className="tile-body">
-                        <div className="tile-name">
-                          {unit.finalChallenge.label || 'Final Challenge'}
+                {unit.finalChallenge &&
+                  (() => {
+                    const challengeTile = (
+                      <div className={`tile ${finalChallengeLocked ? 'locked' : ''}`}>
+                        <div className="tile-num">★</div>
+                        <div className="tile-lock">
+                          {finalChallengeLocked ? '🔒' : finalChallengeCompleted ? '✓' : ''}
                         </div>
-                        <div className="tile-focus">{finalChallengeFocus}</div>
+
+                        <div className="tile-body">
+                          <div className="tile-name">
+                            {unit.finalChallenge.label || 'Final Challenge'}
+                          </div>
+                          <div className="tile-focus">{finalChallengeFocus}</div>
+                        </div>
+
+                        <div className="tile-footer">
+                          {finalChallengeLocked ? (
+                            <span className="tile-muted">Finish all lessons</span>
+                          ) : finalChallengeCompleted ? (
+                            <span>Completed</span>
+                          ) : (
+                            <span>Start Challenge</span>
+                          )}
+                        </div>
                       </div>
+                    )
 
-                      <div className="tile-footer">
-                        {finalChallengeLocked ? (
-                          <span className="tile-muted">Finish all lessons</span>
-                        ) : finalChallengeCompleted ? (
-                          <span>Completed</span>
-                        ) : (
-                          <span>Start Challenge</span>
-                        )}
-                      </div>
-                    </div>
-                  )
+                    if (finalChallengeLocked) {
+                      return <div key={`challenge-${unit.id}`}>{challengeTile}</div>
+                    }
 
-                  if (finalChallengeLocked) {
-                    return <div key={`challenge-${unit.id}`}>{challengeTile}</div>
-                  }
-
-                  return (
-                    <Link
-                      key={`challenge-${unit.id}`}
-                      className="tile-link"
-                      to={`/challenge/${unit.id}`}
-                    >
-                      {challengeTile}
-                    </Link>
-                  )
-                })()}
+                    return (
+                      <Link
+                        key={`challenge-${unit.id}`}
+                        className="tile-link"
+                        to={`/challenge/${unit.id}`}
+                      >
+                        {challengeTile}
+                      </Link>
+                    )
+                  })()}
               </div>
             </section>
           )
@@ -238,17 +273,22 @@ export default function LessonsPage() {
             <div className="tile-muted">No sessions yet.</div>
           )}
 
-          {sessions.slice(0, 10).map((s) => (
-            <div
-              key={s.session_id ?? s.id}
-              className="tile-muted"
-              style={{ marginBottom: '0.4rem' }}
-            >
-              {s.submitted_at ? new Date(s.submitted_at).toLocaleString() : '—'} · WPM:{' '}
-              {s.wpm ?? '—'} · Acc: {formatAccuracy(s.accuracy)} · Time:{' '}
-              {s.time_seconds ?? 0}s
-            </div>
-          ))}
+          {sessions.slice(0, 10).map((s) => {
+            const lesson = LESSON_MAP[s.lesson_id]
+            const lessonText = lesson ? `${lesson.unit} — ${lesson.label}` : 'Unknown Lesson'
+
+            return (
+              <div
+                key={s.id}
+                className="tile-muted"
+                style={{ marginBottom: '0.4rem' }}
+              >
+                {s.submitted_at ? new Date(s.submitted_at).toLocaleString() : '—'} ·{' '}
+                {lessonText} · WPM: {s.wpm == null ? '—' : Number(s.wpm).toFixed(1)} ·
+                {' '}Acc: {formatAccuracy(s.accuracy)} · Time: {s.time_seconds ?? 0}s
+              </div>
+            )
+          })}
         </section>
       </div>
     </>

@@ -30,7 +30,7 @@ export async function submitPractice(payload) {
 /**
  * Fetch aggregated practice stats
  */
-export async function fetchPracticeStats(window = 50) {
+export async function fetchPracticeStats(window = 200) {
   const { data } = await api.get('/api/practice/stats', {
     params: { window },
   })
@@ -38,11 +38,41 @@ export async function fetchPracticeStats(window = 50) {
 }
 
 /**
- * Fetch recent practice sessions
+ * Fetch recent submitted sessions for dashboard/lessons page
  */
-export async function fetchPracticeSessions(limit = 10) {
-  const { data } = await api.get('/api/practice/sessions', {
+export async function fetchRecentSessions(limit = 10) {
+  const { data } = await api.get('/api/practice/sessions/recent', {
     params: { limit },
+  })
+  return data
+}
+
+/**
+ * Fetch session history with pagination
+ */
+export async function fetchPracticeSessions(limit = 20, offset = 0) {
+  const { data } = await api.get('/api/practice/sessions', {
+    params: { limit, offset },
+  })
+  return data
+}
+
+/**
+ * Fetch per-lesson aggregated stats
+ */
+export async function fetchLessonStats(window = 500) {
+  const { data } = await api.get('/api/practice/stats/by-lesson', {
+    params: { window },
+  })
+  return data
+}
+
+/**
+ * Fetch WPM / accuracy trend data
+ */
+export async function fetchPracticeTrends(window = 100) {
+  const { data } = await api.get('/api/practice/stats/trends', {
+    params: { window },
   })
   return data
 }
