@@ -2,8 +2,7 @@ import axios from 'axios'
 
 // Axios instance
 const api = axios.create({
-  // Leave empty so Vite proxy handles /api -> http://127.0.0.1:8000
-  baseURL: '',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000',
   withCredentials: true,
 })
 
