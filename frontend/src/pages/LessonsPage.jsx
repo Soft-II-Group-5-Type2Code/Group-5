@@ -10,6 +10,7 @@ import {
   isFinalChallengeCompleted,
   getUnlocksOverride,
   setUnlocksOverride,
+  getNextIncompleteLesson,
 } from '../utils/progress'
 
 import { fetchPracticeStats, fetchRecentSessions } from '../api/practice'
@@ -49,47 +50,93 @@ function buildLessonMap() {
 
 const LESSON_MAP = buildLessonMap()
 
-function getNextLesson(unit, progress) {
-  return unit.lessons.find((lesson) => !isCompleted(progress, unit.id, lesson.stepId)) || null
+function isUnitCompleted(unit, progress) {
+  return unit.lessons.every((lesson) =>
+    isCompleted(progress, unit.id, lesson.stepId)
+  )
 }
 
-function isUnitCompleted(unit, progress) {
-  return unit.lessons.every((lesson) => isCompleted(progress, unit.id, lesson.stepId))
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function retryOnce(fn, label, fallbackValue) {
+  try {
+    return await fn()
+  } catch (err) {
+    console.warn(`${label} failed, retrying once...`, err)
+    await wait(400)
+
+    try {
+      return await fn()
+    } catch (err2) {
+      console.error(`${label} failed again:`, err2)
+      return fallbackValue
+    }
+  }
 }
 
 export default function LessonsPage() {
   const progress = loadProgress()
 
-  const [locksDisabled, setLocksDisabled] = useState(() => getUnlocksOverride())
+  const [locksDisabled, setLocksDisabled] = useState(() =>
+    getUnlocksOverride()
+  )
+
   const [stats, setStats] = useState(null)
   const [sessions, setSessions] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [sessionsLoading, setSessionsLoading] = useState(true)
+
+  const [statsError, setStatsError] = useState('')
+  const [sessionsError, setSessionsError] = useState('')
 
   useEffect(() => {
+    let cancelled = false
+
     async function loadBackendData() {
-      try {
-        setLoading(true)
-        setError(null)
+      setStatsLoading(true)
+      setSessionsLoading(true)
+      setStatsError('')
+      setSessionsError('')
 
-        const [statsRes, sessionsRes] = await Promise.all([
-          fetchPracticeStats(200),
-          fetchRecentSessions(10),
-        ])
+      const [statsData, sessionsData] = await Promise.all([
+        retryOnce(() => fetchPracticeStats(200), 'stats', null),
+        retryOnce(() => fetchRecentSessions(10), 'recent sessions', { sessions: [] }),
+      ])
 
-        setStats(statsRes || null)
-        setSessions(Array.isArray(sessionsRes?.sessions) ? sessionsRes.sessions : [])
-      } catch (err) {
-        console.error('Failed to load practice data:', err)
-        setError('Failed to load practice data.')
+      if (cancelled) return
+
+      if (statsData == null) {
         setStats(null)
-        setSessions([])
-      } finally {
-        setLoading(false)
+        setStatsError('Failed to load stats.')
+      } else {
+        setStats(statsData)
       }
+
+      const normalizedSessions = Array.isArray(sessionsData?.sessions)
+        ? sessionsData.sessions
+        : Array.isArray(sessionsData)
+        ? sessionsData
+        : []
+
+      if (sessionsData == null) {
+        setSessions([])
+        setSessionsError('Failed to load recent sessions.')
+      } else {
+        setSessions(normalizedSessions)
+      }
+
+      setStatsLoading(false)
+      setSessionsLoading(false)
     }
 
     loadBackendData()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   function toggleLocks() {
@@ -97,6 +144,9 @@ export default function LessonsPage() {
     setLocksDisabled(next)
     setUnlocksOverride(next)
   }
+
+  const showGlobalError = statsError && sessionsError
+  const isLoading = statsLoading || sessionsLoading
 
   return (
     <>
@@ -112,40 +162,33 @@ export default function LessonsPage() {
         <h1 className="lessons-title">Lessons</h1>
 
         <div className="lessons-metrics" style={{ marginBottom: '1.25rem' }}>
-          {loading && <div className="tile-muted">Loading stats…</div>}
+          {isLoading && <div className="tile-muted">Loading stats…</div>}
 
-          {error && <div style={{ color: 'red' }}>{error}</div>}
+          {!isLoading && showGlobalError && (
+            <div style={{ color: 'red' }}>Practice data is temporarily unavailable.</div>
+          )}
 
-          {!loading && !error && stats && (
+          {!statsLoading && stats && (
             <>
-              <div className="tile-muted">
-                Total Sessions: {stats.total_sessions ?? 0}
-              </div>
-
+              <div className="tile-muted">Total Sessions: {stats.total_sessions ?? 0}</div>
               <div className="tile-muted">
                 Avg WPM: {stats.avg_wpm == null ? '—' : Number(stats.avg_wpm).toFixed(1)}
               </div>
-
               <div className="tile-muted">
                 Best WPM: {stats.best_wpm == null ? '—' : Number(stats.best_wpm).toFixed(1)}
               </div>
-
               <div className="tile-muted">
                 Avg Accuracy: {formatAccuracy(stats.avg_accuracy)}
               </div>
-
               <div className="tile-muted">
                 Best Accuracy: {formatAccuracy(stats.best_accuracy)}
               </div>
-
               <div className="tile-muted">
                 Total Time: {stats.total_time_seconds ?? 0}s
               </div>
-
               <div className="tile-muted">
                 Last 30 Days: {stats.last_30_days_time_seconds ?? 0}s
               </div>
-
               <div className="tile-muted">
                 Most Practiced:{' '}
                 {stats.most_practiced_lesson_id
@@ -155,51 +198,61 @@ export default function LessonsPage() {
             </>
           )}
 
-          {!loading && !error && !stats && (
+          {!statsLoading && !stats && !statsError && (
             <div className="tile-muted">No stats yet.</div>
           )}
         </div>
 
+        {sessionsError && !statsError && (
+          <div className="tile-muted" style={{ marginBottom: '1rem' }}>
+            Recent sessions could not be loaded right now.
+          </div>
+        )}
+
         {UNITS.map((unit, unitIndex) => {
           const prevUnit = UNITS[unitIndex - 1]
+
           const unitLocked =
             !locksDisabled &&
             unitIndex > 0 &&
             prevUnit &&
             !isUnitCompleted(prevUnit, progress)
 
-          const nextLesson = getNextLesson(unit, progress)
+          const nextLesson = getNextIncompleteLesson(unit, progress)
+
           const completedCount = unit.lessons.filter((lesson) =>
             isCompleted(progress, unit.id, lesson.stepId)
           ).length
+
           const totalCount = unit.lessons.length
+
           const unitComplete = isUnitCompleted(unit, progress)
 
           const categoryLink = unitLocked
             ? null
             : nextLesson
-              ? `/practice/${unit.id}/${nextLesson.stepId}`
-              : `/challenge/${unit.id}`
+            ? `/practice/${unit.id}/${nextLesson.stepId}`
+            : `/challenge/${unit.id}`
 
           const categoryFocus = nextLesson
-            ? shortText(nextLesson.learnText || nextLesson.label || unit.title, 110)
+            ? shortText(nextLesson.learnText || nextLesson.label || unit.title)
             : `All ${unit.title} lessons completed.`
 
           const finalChallengeLocked = !locksDisabled && !unitComplete
           const finalChallengeCompleted = isFinalChallengeCompleted(progress, unit.id)
-          const finalChallengeFocus = shortText(unit.finalChallenge?.prompt || '', 110)
+
+          const finalChallengeFocus = shortText(unit.finalChallenge?.prompt || '')
 
           const categoryTile = (
             <div className={`tile ${unitLocked ? 'locked' : ''}`}>
               <div className="tile-num">{unit.id}</div>
-              <div className="tile-lock">
-                {unitLocked ? '🔒' : unitComplete ? '✓' : ''}
-              </div>
 
               <div className="tile-body">
                 <div className="tile-name">{unit.title}</div>
+
                 <div className="tile-focus">
                   {categoryFocus}
+
                   <div style={{ marginTop: 10, opacity: 0.8 }}>
                     Progress: {completedCount}/{totalCount} lessons
                   </div>
@@ -207,15 +260,13 @@ export default function LessonsPage() {
               </div>
 
               <div className="tile-footer">
-                {unitLocked ? (
-                  <span className="tile-muted">Locked</span>
-                ) : unitComplete ? (
-                  <span>Review / Challenge</span>
-                ) : completedCount > 0 ? (
-                  <span>Continue</span>
-                ) : (
-                  <span>Start</span>
-                )}
+                {unitLocked
+                  ? 'Locked'
+                  : unitComplete
+                  ? 'Review / Challenge'
+                  : completedCount > 0
+                  ? 'Continue'
+                  : 'Start'}
               </div>
             </div>
           )
@@ -223,25 +274,21 @@ export default function LessonsPage() {
           const challengeTile = (
             <div className={`tile ${finalChallengeLocked ? 'locked' : ''}`}>
               <div className="tile-num">★</div>
-              <div className="tile-lock">
-                {finalChallengeLocked ? '🔒' : finalChallengeCompleted ? '✓' : ''}
-              </div>
 
               <div className="tile-body">
                 <div className="tile-name">
                   {unit.finalChallenge?.label || 'Final Challenge'}
                 </div>
+
                 <div className="tile-focus">{finalChallengeFocus}</div>
               </div>
 
               <div className="tile-footer">
-                {finalChallengeLocked ? (
-                  <span className="tile-muted">Finish category first</span>
-                ) : finalChallengeCompleted ? (
-                  <span>Completed</span>
-                ) : (
-                  <span>Start Challenge</span>
-                )}
+                {finalChallengeLocked
+                  ? 'Finish category first'
+                  : finalChallengeCompleted
+                  ? 'Completed'
+                  : 'Start Challenge'}
               </div>
             </div>
           )
@@ -263,13 +310,9 @@ export default function LessonsPage() {
 
                 {unit.finalChallenge &&
                   (finalChallengeLocked ? (
-                    <div key={`challenge-${unit.id}`}>{challengeTile}</div>
+                    <div>{challengeTile}</div>
                   ) : (
-                    <Link
-                      key={`challenge-${unit.id}`}
-                      className="tile-link"
-                      to={`/challenge/${unit.id}`}
-                    >
+                    <Link className="tile-link" to={`/challenge/${unit.id}`}>
                       {challengeTile}
                     </Link>
                   ))}
@@ -277,33 +320,6 @@ export default function LessonsPage() {
             </section>
           )
         })}
-
-        <section style={{ marginTop: '2rem' }}>
-          <h2 style={{ margin: '0 0 0.75rem', fontWeight: 900 }}>
-            Recent Sessions
-          </h2>
-
-          {!loading && sessions.length === 0 && (
-            <div className="tile-muted">No sessions yet.</div>
-          )}
-
-          {sessions.slice(0, 10).map((s) => {
-            const lesson = LESSON_MAP[s.lesson_id]
-            const lessonText = lesson ? `${lesson.unit} — ${lesson.label}` : 'Unknown Lesson'
-
-            return (
-              <div
-                key={s.id}
-                className="tile-muted"
-                style={{ marginBottom: '0.4rem' }}
-              >
-                {s.submitted_at ? new Date(s.submitted_at).toLocaleString() : '—'} ·{' '}
-                {lessonText} · WPM: {s.wpm == null ? '—' : Number(s.wpm).toFixed(1)} ·{' '}
-                Acc: {formatAccuracy(s.accuracy)} · Time: {s.time_seconds ?? 0}s
-              </div>
-            )
-          })}
-        </section>
       </div>
     </>
   )

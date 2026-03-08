@@ -16,7 +16,8 @@
   margin-top: 0.25rem;
 }
 
-/* NEW: rules + learn text */
+/* rules + learn text */
+
 .practice-rules {
   margin-top: 0.5rem;
   color: var(--color-text-muted);
@@ -54,6 +55,16 @@
 
   max-width: 100%;
   overflow: hidden;
+
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.type-box.prompt-transition {
+  opacity: 0.92;
+  transform: translateY(4px) scale(0.995);
 }
 
 .type-line {
@@ -70,7 +81,8 @@
 .char.wrong { color: var(--color-wrong); }
 .char.cursor { border-bottom: 4px solid var(--color-primary-dark); padding-bottom: 2px; }
 
-/* FIX: keep input focusable (remove pointer-events: none), keep it invisible */
+/* hidden typing input */
+
 .hidden-capture {
   position: fixed;
   top: 0;
@@ -91,7 +103,11 @@
 }
 
 .practice-hud .fixed { color: var(--color-fixed); }
-.done-hint { margin-left: auto; color: var(--color-text); }
+
+.done-hint {
+  margin-left: auto;
+  color: var(--color-text);
+}
 
 .keyboard-wrap {
   display: flex;
@@ -113,7 +129,13 @@
 
 .key.big { min-width: 78px; }
 .key.space { min-width: 260px; }
-.key-row { display: flex; justify-content: center; gap: 0.45rem; margin-bottom: 0.45rem; }
+
+.key-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
 
 .key.active {
   border-color: rgba(54, 141, 225, 0.9);
@@ -126,6 +148,8 @@
   justify-content: center;
   margin-top: 1.25rem;
 }
+
+/* start typing overlay */
 
 .start-overlay {
   position: absolute;
@@ -155,4 +179,37 @@
 .start-sub {
   opacity: 0.75;
   font-size: 13px;
+}
+
+/* -----------------------------
+   NEW: LIVE WPM + PROGRESS BAR
+------------------------------*/
+
+.practice-livebar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 12px 0 18px;
+  flex-wrap: wrap;
+}
+
+.practice-metric {
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.practice-progress {
+  position: relative;
+  width: min(420px, 100%);
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  overflow: hidden;
+}
+
+.practice-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6ea8fe, #8b5cf6);
+  transition: width 120ms ease;
 }

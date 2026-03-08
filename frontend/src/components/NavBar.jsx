@@ -1,11 +1,16 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
-import { Link } from "react-router-dom";
 import '../styles/navbar.css'
+
+import { UNITS } from '../data/units'
+import { loadProgress, getResumePracticeRoute } from '../utils/progress'
 
 export default function NavBar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+
+  const progress = loadProgress()
+  const practiceRoute = getResumePracticeRoute(UNITS, progress)
 
   async function handleLogout() {
     await logout()
@@ -22,7 +27,7 @@ export default function NavBar() {
         {user && (
           <div className="navbar-links">
             <NavLink
-              to="/practice/1/1"
+              to={practiceRoute}
               className={({ isActive }) => `navbar-link ${isActive ? 'active' : ''}`}
             >
               Practice

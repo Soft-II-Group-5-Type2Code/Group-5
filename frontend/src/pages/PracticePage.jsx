@@ -4,7 +4,12 @@ import NavBar from '../components/NavBar'
 import '../styles/practice.css'
 
 import { UNITS } from '../data/units'
-import { loadProgress, saveProgress, markCompleted } from '../utils/progress'
+import {
+  loadProgress,
+  saveProgress,
+  markCompleted,
+  saveLastPracticeRoute,
+} from '../utils/progress'
 import { startPractice, submitPractice } from '../api/practice'
 
 function getPerRow() {
@@ -28,8 +33,19 @@ function normalizePromptText(value) {
   return String(value ?? '')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
-    .replace(/[ \t]+$/gm, '')
-    .replace(/\n+$/, '')
+}
+
+function isExactRenderedMatch(a, b) {
+  const left = normalizePromptText(a)
+  const right = normalizePromptText(b)
+
+  if (left.length !== right.length) return false
+
+  for (let i = 0; i < right.length; i += 1) {
+    if (left[i] !== right[i]) return false
+  }
+
+  return true
 }
 
 function flattenLessonTargets(lesson, perRow) {
@@ -83,6 +99,7 @@ function flattenLessonTargets(lesson, perRow) {
 export default function PracticePage() {
   const { unitId, stepId } = useParams()
   const inputRef = useRef(null)
+  const advanceTimeoutRef = useRef(null)
 
   const unit = useMemo(
     () => UNITS.find((u) => u.id === Number(unitId)) || UNITS[0],
@@ -105,8 +122,10 @@ export default function PracticePage() {
   const [promptIndex, setPromptIndex] = useState(0)
   const [hasCompletedFirstCycle, setHasCompletedFirstCycle] = useState(false)
 
+  const [liveElapsedMs, setLiveElapsedMs] = useState(0)
+  const [promptAnimating, setPromptAnimating] = useState(false)
+
   const autoAdvanceLockRef = useRef(false)
-  const pendingAdvanceRef = useRef(false)
 
   const sessionIdRef = useRef(null)
   const sessionStartRef = useRef(null)
@@ -114,6 +133,8 @@ export default function PracticePage() {
   const cycleWrongRef = useRef(0)
   const cycleFixedRef = useRef(0)
   const cycleTargetCharsRef = useRef(0)
+
+  const typingStartRef = useRef(null)
 
   function focusInput() {
     requestAnimationFrame(() => inputRef.current?.focus())
@@ -127,14 +148,32 @@ export default function PracticePage() {
     prompts.length > 0 ? Math.min(promptIndex, prompts.length - 1) : 0
 
   const target = normalizePromptText(prompts[safePromptIndex] ?? '')
-  const doneExact = normalizePromptText(typed) === target
+  const doneExact = isExactRenderedMatch(typed, target)
   const expectedChar = typed.length < target.length ? target[typed.length] : null
+
+  const progressPercent =
+    target.length > 0
+      ? Math.min(100, Math.round((typed.length / target.length) * 100))
+      : 0
+
+  const liveWpm = useMemo(() => {
+    if (!hasStarted || !typingStartRef.current || typed.length === 0) return 0
+
+    const minutes = liveElapsedMs / 60000
+    if (minutes <= 0) return 0
+
+    return Math.max(0, Math.round((typed.length / 5) / minutes))
+  }, [typed.length, liveElapsedMs, hasStarted])
 
   useEffect(() => {
     const onResize = () => setPerRow(getPerRow())
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  useEffect(() => {
+    saveLastPracticeRoute(unitId, stepId)
+  }, [unitId, stepId])
 
   useEffect(() => {
     setTyped('')
@@ -144,18 +183,71 @@ export default function PracticePage() {
     setOverlayDismissed(false)
     setPromptIndex(0)
     setHasCompletedFirstCycle(false)
+    setLiveElapsedMs(0)
+    setPromptAnimating(false)
 
     autoAdvanceLockRef.current = false
-    pendingAdvanceRef.current = false
 
     sessionIdRef.current = null
     sessionStartRef.current = null
     cycleWrongRef.current = 0
     cycleFixedRef.current = 0
     cycleTargetCharsRef.current = 0
+    typingStartRef.current = null
+
+    if (advanceTimeoutRef.current) {
+      clearTimeout(advanceTimeoutRef.current)
+      advanceTimeoutRef.current = null
+    }
 
     focusInput()
   }, [unitId, stepId])
+
+  useEffect(() => {
+    if (!hasStarted || !typingStartRef.current) return
+
+    const timer = setInterval(() => {
+      setLiveElapsedMs(Date.now() - typingStartRef.current)
+    }, 200)
+
+    return () => clearInterval(timer)
+  }, [hasStarted, promptIndex])
+
+  useEffect(() => {
+    return () => {
+      if (advanceTimeoutRef.current) {
+        clearTimeout(advanceTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!target) return
+    if (!doneExact) return
+    if (autoAdvanceLockRef.current) return
+
+    autoAdvanceLockRef.current = true
+
+    if (advanceTimeoutRef.current) {
+      clearTimeout(advanceTimeoutRef.current)
+    }
+
+    advanceTimeoutRef.current = setTimeout(() => {
+      advancePrompt({
+        promptIndex: safePromptIndex,
+        targetLength: target.length,
+        wrongCount,
+        fixedCount,
+      })
+    }, 250)
+
+    return () => {
+      if (advanceTimeoutRef.current) {
+        clearTimeout(advanceTimeoutRef.current)
+        advanceTimeoutRef.current = null
+      }
+    }
+  }, [doneExact, safePromptIndex, target, wrongCount, fixedCount])
 
   async function ensureBackendSessionStarted() {
     if (sessionIdRef.current) return
@@ -221,12 +313,21 @@ export default function PracticePage() {
     }
   }
 
+  function triggerPromptTransition() {
+    setPromptAnimating(true)
+    setTimeout(() => {
+      setPromptAnimating(false)
+    }, 180)
+  }
+
   function resetTypingForNextPrompt() {
     setTyped('')
     setWrongCount(0)
     setFixedCount(0)
+    setLiveElapsedMs(0)
+    typingStartRef.current = hasStarted ? Date.now() : null
     autoAdvanceLockRef.current = false
-    pendingAdvanceRef.current = false
+    triggerPromptTransition()
     focusInput()
   }
 
@@ -251,15 +352,18 @@ export default function PracticePage() {
     }
   }
 
-  async function advancePrompt() {
-    cycleWrongRef.current += wrongCount
-    cycleFixedRef.current += fixedCount
-    cycleTargetCharsRef.current += target.length
+  async function advancePrompt(snapshot) {
+    cycleWrongRef.current += snapshot.wrongCount
+    cycleFixedRef.current += snapshot.fixedCount
+    cycleTargetCharsRef.current += snapshot.targetLength
 
-    const isLastPrompt = safePromptIndex >= prompts.length - 1
+    const isLastPrompt = snapshot.promptIndex >= prompts.length - 1
 
     if (!isLastPrompt) {
-      setPromptIndex((prev) => prev + 1)
+      setPromptIndex((prev) => {
+        const nextIndex = Math.min(prev + 1, prompts.length - 1)
+        return nextIndex
+      })
       resetTypingForNextPrompt()
       return
     }
@@ -272,23 +376,10 @@ export default function PracticePage() {
     await startNextBackendCycle()
   }
 
-  useEffect(() => {
-    if (!pendingAdvanceRef.current) return
-    if (!doneExact) return
-    if (autoAdvanceLockRef.current) return
-
-    autoAdvanceLockRef.current = true
-
-    const timer = setTimeout(() => {
-      advancePrompt()
-    }, 250)
-
-    return () => clearTimeout(timer)
-  }, [doneExact, promptIndex]) // eslint-disable-line react-hooks/exhaustive-deps
-
   function beginSessionIfNeeded() {
     if (!hasStarted) setHasStarted(true)
     if (!overlayDismissed) setOverlayDismissed(true)
+    if (!typingStartRef.current) typingStartRef.current = Date.now()
     ensureBackendSessionStarted()
     focusInput()
   }
@@ -316,7 +407,6 @@ export default function PracticePage() {
         setTyped((prev) => prev.slice(0, -1))
         setFixedCount((n) => n + 1)
       }
-      pendingAdvanceRef.current = false
       autoAdvanceLockRef.current = false
       e.preventDefault()
       return
@@ -328,23 +418,31 @@ export default function PracticePage() {
     }
 
     let nextValue = typed
+    let nextWrongCount = wrongCount
 
     if (e.key === 'Enter') {
       nextValue = typed + '\n'
-      if (expectedChar !== '\n') setWrongCount((n) => n + 1)
+      if (expectedChar !== '\n') {
+        nextWrongCount = wrongCount + 1
+        setWrongCount(nextWrongCount)
+      }
       setTyped(nextValue)
       e.preventDefault()
     } else if (e.key.length === 1) {
       nextValue = typed + e.key
-      if (expectedChar !== e.key) setWrongCount((n) => n + 1)
+      if (expectedChar !== e.key) {
+        nextWrongCount = wrongCount + 1
+        setWrongCount(nextWrongCount)
+      }
       setTyped(nextValue)
       e.preventDefault()
     } else {
       return
     }
 
-    const completedNow = normalizePromptText(nextValue) === target
-    pendingAdvanceRef.current = completedNow
+    if (!typingStartRef.current) {
+      typingStartRef.current = Date.now()
+    }
   }
 
   return (
@@ -386,8 +484,23 @@ export default function PracticePage() {
           </div>
         </div>
 
+        <div className="practice-livebar">
+          <div className="practice-metric">
+            WPM: <b>{liveWpm}</b>
+          </div>
+          <div className="practice-metric">
+            Progress: <b>{progressPercent}%</b>
+          </div>
+          <div className="practice-progress">
+            <div
+              className="practice-progress-fill"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
+
         <div className="type-area">
-          <div className="type-box">
+          <div className={`type-box ${promptAnimating ? 'prompt-transition' : ''}`}>
             {!overlayDismissed && typed.length === 0 && (
               <div
                 className="start-overlay"

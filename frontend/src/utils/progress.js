@@ -4,6 +4,8 @@ const KEY = 'type2code_progress_v1'
 export const UNLOCKS_KEY = 'type2code_unlocks_override_v1'
 // value "off" => locks disabled
 
+const LAST_PRACTICE_KEY = 'type2code_last_practice_route_v1'
+
 export function getUnlocksOverride() {
   return localStorage.getItem(UNLOCKS_KEY) === 'off'
 }
@@ -103,4 +105,64 @@ export function computeLocks(units, progress) {
   }
 
   return locks
+}
+
+export function getNextIncompleteLesson(unit, progress) {
+  return (
+    unit.lessons.find((lesson) => !isCompleted(progress, unit.id, lesson.stepId)) ||
+    unit.lessons[0] ||
+    null
+  )
+}
+
+export function getFirstAvailablePracticeRoute(units, progress) {
+  for (const unit of units) {
+    const lesson = getNextIncompleteLesson(unit, progress)
+    if (lesson) {
+      return `/practice/${unit.id}/${lesson.stepId}`
+    }
+  }
+
+  return '/lessons'
+}
+
+export function saveLastPracticeRoute(unitId, stepId) {
+  localStorage.setItem(
+    LAST_PRACTICE_KEY,
+    JSON.stringify({
+      unitId: Number(unitId),
+      stepId: Number(stepId),
+    })
+  )
+}
+
+export function loadLastPracticeRoute() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAST_PRACTICE_KEY))
+    if (!raw) return null
+
+    const unitId = Number(raw.unitId)
+    const stepId = Number(raw.stepId)
+
+    if (!Number.isFinite(unitId) || !Number.isFinite(stepId)) return null
+
+    return { unitId, stepId }
+  } catch {
+    return null
+  }
+}
+
+export function getResumePracticeRoute(units, progress) {
+  const last = loadLastPracticeRoute()
+
+  if (last) {
+    const unit = units.find((u) => u.id === last.unitId)
+    const lesson = unit?.lessons.find((l) => l.stepId === last.stepId)
+
+    if (unit && lesson && !isCompleted(progress, unit.id, lesson.stepId)) {
+      return `/practice/${unit.id}/${lesson.stepId}`
+    }
+  }
+
+  return getFirstAvailablePracticeRoute(units, progress)
 }
