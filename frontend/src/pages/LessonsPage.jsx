@@ -155,6 +155,7 @@ export default function LessonsPage() {
       <div className="lessons-shell">
         <div className="lessons-topbar">
           <div>
+            <div className="lessons-kicker">TYPE2CODE // LEARNING DASHBOARD</div>
             <h1 className="lessons-title">Lessons</h1>
             <p className="lessons-subtitle">
               Pick up where you left off, review a category, or jump into a final challenge.
