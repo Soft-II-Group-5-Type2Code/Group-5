@@ -27,3 +27,8 @@ frontend/.vite/
 
 # OS junk
 .DS_Store
+
+# Test coverage
+backend/coverage.xml
+backend/.coverage
+htmlcov/

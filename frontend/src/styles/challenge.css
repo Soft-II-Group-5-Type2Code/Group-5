@@ -16,6 +16,7 @@
   font-size: 1.9rem;
   font-weight: 900;
   margin-bottom: 0.2rem;
+  color: var(--color-text);
 }
 
 .challenge-sub {
@@ -43,6 +44,7 @@
   margin-bottom: 1.25rem;
   font-size: 1rem;
   line-height: 1.6;
+  color: var(--color-text);
 }
 
 .challenge-editor-cm {
@@ -59,7 +61,7 @@
 
 .challenge-editor-cm .cm-editor {
   min-height: 220px;
-  background: #fafafa;
+  background: #0f172a;
   font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
   font-size: 0.95rem;
   line-height: 1.6;
@@ -74,9 +76,9 @@
 }
 
 .challenge-editor-cm .cm-gutters {
-  background: #f0f0f0;
+  background: #111827;
   border-right: 1px solid var(--color-border);
-  color: #999;
+  color: #475569;
 }
 
 .challenge-run-row {
@@ -108,13 +110,14 @@
 }
 
 .challenge-output {
-  background: #1a1a1a;
-  color: #e8e8e8;
+  background: #030712;
+  color: #e2e8f0;
   font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
   font-size: 0.9rem;
   line-height: 1.55;
   padding: 1rem 1.25rem;
   border-radius: 6px;
+  border: 1px solid var(--color-border);
   min-height: 80px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -131,12 +134,12 @@
 }
 
 .challenge-error {
-  color: #ff6b6b;
+  color: #f87171;
 }
 
 .challenge-passed {
-  background: #edfbf0;
-  border: 1px solid #a3e6b3;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.3);
   border-radius: 6px;
   padding: 1rem 1.25rem;
   display: flex;
@@ -154,23 +157,23 @@
 
 .btn-complete {
   background: var(--color-correct);
-  color: #fff;
+  color: #000;
   border: none;
   padding: 0.55rem 1.25rem;
   border-radius: 6px;
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: opacity 0.15s ease;
 }
 
 .btn-complete:hover {
-  background: #178a3e;
+  opacity: 0.85;
 }
 
 .challenge-wrong {
-  background: #fff5f5;
-  border: 1px solid #feb2b2;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.3);
   border-radius: 6px;
   padding: 0.85rem 1.25rem;
   display: flex;
@@ -183,18 +186,19 @@
 
 .challenge-wrong-msg {
   font-weight: 700;
-  color: #c53030;
+  color: var(--color-wrong);
   font-size: 1.05rem;
 }
 
 .challenge-wrong-expected {
   font-size: 0.9rem;
-  color: #744210;
+  color: var(--color-text-muted);
 }
 
 .challenge-wrong-expected code {
   font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
-  background: #fef3c7;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
   padding: 0.1rem 0.35rem;
   border-radius: 3px;
 }

@@ -104,6 +104,7 @@ export default function FinalChallengePage() {
           value={code}
           onChange={(val) => setCode(val)}
           extensions={[javascript()]}
+          theme="dark"
           className="challenge-editor-cm"
           basicSetup={{
             lineNumbers: true,

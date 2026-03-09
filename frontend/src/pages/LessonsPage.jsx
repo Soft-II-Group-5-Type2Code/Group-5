@@ -219,17 +219,6 @@ export default function LessonsPage() {
                     </div>
 
                     <div className="lesson-card-footer">
-                      <div className="lesson-progress-text">
-                        {completedCount}/{totalCount} lessons complete
-                      </div>
-                      <div className="lesson-progress-bar">
-                        <div
-                          className="lesson-progress-fill"
-                          style={{
-                            width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%`,
-                          }}
-                        />
-                      </div>
                       <div className="lesson-action">
                         {unitLocked
                           ? 'Locked'
