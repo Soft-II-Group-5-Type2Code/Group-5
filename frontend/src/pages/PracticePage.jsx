@@ -140,6 +140,25 @@ function looksRunnable(code) {
   return true
 }
 
+function friendlyConsoleError(message) {
+  const msg = String(message ?? '')
+
+  if (
+    msg.includes('Unexpected end of input') ||
+    msg.includes('Unexpected token') ||
+    msg.includes('missing ) after argument list') ||
+    msg.includes('Unexpected identifier')
+  ) {
+    return 'Code is not complete enough to run yet.'
+  }
+
+  if (msg.includes('is not defined')) {
+    return 'Waiting for the full code snippet before this can run.'
+  }
+
+  return msg || 'Code could not run yet.'
+}
+
 function runLessonCode(source) {
   const code = String(source ?? '').trim()
 
@@ -158,11 +177,11 @@ function runLessonCode(source) {
     }
   }
 
-  const output = []
+  const logs = []
 
-  const fakeConsole = {
+  const consoleProxy = {
     log: (...args) => {
-      output.push(
+      logs.push(
         args
           .map((arg) => {
             if (typeof arg === 'string') return arg
@@ -180,41 +199,24 @@ function runLessonCode(source) {
   try {
     const runner = new Function(
       'console',
-      'window',
-      'document',
-      'fetch',
-      'localStorage',
-      'sessionStorage',
       `
-        "use strict";
-        ${code}
-      `
+"use strict";
+${code}
+`
     )
 
-    runner(
-      fakeConsole,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined
-    )
+    runner(consoleProxy)
 
     return {
       status: 'success',
-      lines: output.length > 0
-        ? ['Code executed successfully.', ...output]
+      lines: logs.length > 0
+        ? ['Code executed successfully.', ...logs]
         : ['Code executed successfully.', 'No console output.'],
     }
   } catch (err) {
-    const message =
-      err && typeof err.message === 'string'
-        ? err.message
-        : 'Code is not runnable yet.'
-
     return {
       status: 'error',
-      lines: ['Code could not run yet.', message],
+      lines: ['Code could not run yet.', friendlyConsoleError(err?.message)],
     }
   }
 }
@@ -232,7 +234,7 @@ function explainCode(line) {
       return `Starts a function named ${name}. This creates a reusable block of code that can be called later.`
     }
 
-    return `Starts a function named ${name} that takes ${params} as input. The code inside this block will use that input when the function runs.`
+    return `Starts a function named ${name} that takes ${params} as input. The code inside this function can use that input when it runs.`
   }
 
   if (text === '}') {
@@ -256,13 +258,13 @@ function explainCode(line) {
   const constMatch = text.match(/^const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
   if (constMatch) {
     const [, name, value] = constMatch
-    return `Creates a constant named ${name} and gives it the value ${value}. This value should not be changed later.`
+    return `Creates a constant named ${name} and gives it the value ${value}. Constants are meant to stay the same.`
   }
 
   const letMatch = text.match(/^let\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(.+);$/)
   if (letMatch) {
     const [, name, value] = letMatch
-    return `Creates a variable named ${name} and stores ${value} in it. This variable can be updated later.`
+    return `Creates a variable named ${name} and stores ${value} in it. This variable can be changed later.`
   }
 
   const updateMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*\1\s*([\+\-])\s*(.+);$/)
@@ -282,7 +284,7 @@ function explainCode(line) {
 
   const consoleMatch = text.match(/^console\.log\((.*)\);$/)
   if (consoleMatch) {
-    return `Prints ${consoleMatch[1]} to the console output so the user can see it.`
+    return `Prints ${consoleMatch[1]} to the console so the user can see the result.`
   }
 
   const ifMatch = text.match(/^if\s*\((.*)\)\s*\{$/)
@@ -292,13 +294,13 @@ function explainCode(line) {
 
   const elseMatch = text.match(/^}\s*else\s*{$|^else\s*{$/)
   if (elseMatch) {
-    return 'Starts the else block. This code runs when the if condition is false.'
+    return 'Starts the else block. This code runs when the earlier if condition is false.'
   }
 
   const forMatch = text.match(/^for\s*\((.*?);(.*?);(.*?)\)\s*\{$/)
   if (forMatch) {
     const [, start, condition, update] = forMatch
-    return `Starts a loop. It begins with ${start.trim()}, keeps going while ${condition.trim()} is true, and updates with ${update.trim()} after each round.`
+    return `Starts a loop. It begins with ${start.trim()}, keeps going while ${condition.trim()} is true, and updates with ${update.trim()} after each repetition.`
   }
 
   const callMatch = text.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\((.*)\);$/)
@@ -320,7 +322,7 @@ function previewExecution(line) {
   const functionMatch = text.match(/^function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\((.*?)\)\s*\{$/)
   if (functionMatch) {
     const [, name] = functionMatch
-    return `Preview: a function named ${name} is being created, but it will not do anything until it is called.`
+    return `Preview: a function named ${name} is being created. It will not do anything until the function is called.`
   }
 
   const returnStringMatch = text.match(/^return\s+["'`](.*)["'`];?$/)
@@ -385,6 +387,7 @@ export default function PracticePage() {
   const { unitId, stepId } = useParams()
   const inputRef = useRef(null)
   const advanceTimeoutRef = useRef(null)
+  const consoleDebounceRef = useRef(null)
 
   const unit = useMemo(
     () => UNITS.find((u) => u.id === Number(unitId)) || UNITS[0],
@@ -409,6 +412,10 @@ export default function PracticePage() {
 
   const [liveElapsedMs, setLiveElapsedMs] = useState(0)
   const [promptAnimating, setPromptAnimating] = useState(false)
+  const [consoleResult, setConsoleResult] = useState({
+    status: 'idle',
+    lines: ['No code to run yet.'],
+  })
 
   const autoAdvanceLockRef = useRef(false)
 
@@ -442,10 +449,6 @@ export default function PracticePage() {
   const executableSource = useMemo(() => {
     return buildExecutableSource(prompts, safePromptIndex)
   }, [prompts, safePromptIndex])
-
-  const consoleResult = useMemo(() => {
-    return runLessonCode(executableSource)
-  }, [executableSource])
 
   const progressPercent =
     target.length > 0
@@ -481,6 +484,10 @@ export default function PracticePage() {
     setHasCompletedFirstCycle(false)
     setLiveElapsedMs(0)
     setPromptAnimating(false)
+    setConsoleResult({
+      status: 'idle',
+      lines: ['No code to run yet.'],
+    })
 
     autoAdvanceLockRef.current = false
 
@@ -494,6 +501,11 @@ export default function PracticePage() {
     if (advanceTimeoutRef.current) {
       clearTimeout(advanceTimeoutRef.current)
       advanceTimeoutRef.current = null
+    }
+
+    if (consoleDebounceRef.current) {
+      clearTimeout(consoleDebounceRef.current)
+      consoleDebounceRef.current = null
     }
 
     focusInput()
@@ -514,8 +526,28 @@ export default function PracticePage() {
       if (advanceTimeoutRef.current) {
         clearTimeout(advanceTimeoutRef.current)
       }
+      if (consoleDebounceRef.current) {
+        clearTimeout(consoleDebounceRef.current)
+      }
     }
   }, [])
+
+  useEffect(() => {
+    if (consoleDebounceRef.current) {
+      clearTimeout(consoleDebounceRef.current)
+    }
+
+    consoleDebounceRef.current = setTimeout(() => {
+      setConsoleResult(runLessonCode(executableSource))
+    }, 200)
+
+    return () => {
+      if (consoleDebounceRef.current) {
+        clearTimeout(consoleDebounceRef.current)
+        consoleDebounceRef.current = null
+      }
+    }
+  }, [executableSource])
 
   useEffect(() => {
     if (!target) return
