@@ -5,10 +5,10 @@
 https://group-5-pink.vercel.app
 
 ## Manuals
-- [User Manual](https://github.com/JacksonH-W/Group-5/blob/main/docs/manuals/user/run_with_docker.md)  
-  - Instructions to run with Docker
-- [Developer Manual](https://github.com/JacksonH-W/Group-5/blob/main/docs/manuals/developer/run_with_make.md)
-  - Instructions to run with Makefile
+- [Install/User Manual](https://github.com/JacksonH-W/Group-5/blob/main/docs/manuals/user/INSTALL.md)  
+  - Instructions to access & use web application
+- [Setup/Developer Manual](https://github.com/JacksonH-W/Group-5/blob/main/docs/manuals/developer/SETUP.md)
+  - Instructions to install & run locally, with Makefile
 
 ## Team Members
 Rustislav Boulton <br>
